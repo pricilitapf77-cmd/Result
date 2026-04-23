@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>FSCE - Resultados</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #f3f4f6;
+}
+
+/* 🟦 HEADER */
+.header {
+  background: #0b1b3a;
+  color: white;
+  padding: 12px 18px;
+}
+
+/* LOGO */
+.logo {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  display: inline-block;
+  background: rgba(255,255,255,0.1);
+  padding: 6px 12px;
+  border-radius: 6px;
+}
+
+/* INFO LINE */
+.info-line {
+  display: flex;
+  gap: 20px;
+  margin-top: 8px;
+  font-size: 13px;
+  align-items: center;
+  width: 100%;
+}
+
+/* DOTS */
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 6px;
+}
+
+.green { background: #22c55e; }
+.red { background: #ef4444; }
+
+/* AVANCE A LA DERECHA */
+.avance {
+  margin-left: auto;
+  font-weight: bold;
+}
+
+/* PROGRESS FULL WIDTH */
+.progress {
+  width: 100vw;
+  height: 6px;
+  background: rgba(255,255,255,0.15);
+  margin-top: 10px;
+  margin-left: -18px;
+}
+
+.progress-bar {
+  height: 100%;
+  background: #22c55e;
+  width: 0%;
+  transition: width 0.5s ease;
+}
+
+/* CONTENEDOR */
+.container {
+  padding: 15px;
+}
+
+/* CHART */
+.chart-box {
+  background: white;
+  padding: 10px;
+  border-radius: 10px;
+  height: 150px;
+  margin-bottom: 12px;
+}
+
+/* RESULTADOS */
+.result {
+  background: white;
+  padding: 10px;
+  border-radius: 10px;
+  margin-bottom: 8px;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.bar {
+  height: 12px;
+  background: #e5e7eb;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+}
+
+/* BOTON LIMA */
+button {
+  margin-top: 10px;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 8px;
+  background: #1e3a8a;
+  color: white;
+  cursor: pointer;
+}
+
+/* PANEL REGION */
+#regionData {
+  background: white;
+  padding: 12px;
+  border-radius: 10px;
+  margin-top: 10px;
+  font-size: 14px;
+  display: none;
+}
+</style>
+</head>
+
+<body>
+
+<!-- 🟦 HEADER -->
+<div class="header">
+
+  <div class="logo">FSCE</div>
+
+  <div class="info-line">
+
+    <div>
+      <span class="dot green"></span>
+      Actas contabilizadas: <b id="conta">0</b>
+    </div>
+
+    <div>
+      <span class="dot red"></span>
+      Actas pendientes: <b id="pend">0</b>
+    </div>
+
+    <!-- 🟦 AVANCE A LA DERECHA -->
+    <div class="avance">
+      Avance <span id="avancePct">0%</span>
+    </div>
+
+  </div>
+
+  <div class="progress">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+
+</div>
+
+<!-- 📦 CONTENIDO -->
+<div class="container">
+
+  <!-- 📊 GRÁFICO -->
+  <div class="chart-box">
+    <canvas id="chart"></canvas>
+  </div>
+
+  <!-- 📊 RESULTADOS -->
+  <div id="resultados"></div>
+
+  <!-- 🔘 BOTÓN LIMA -->
+  <button onclick="mostrarLima()">LIMA</button>
+
+  <!-- 📍 PANEL -->
+  <div id="regionData"></div>
+
+</div>
+
+<script>
+
+const TOTAL_ACTAS = 575;
+let DB = {};
+let chart;
+
+// 📥 CSV
+function cargarCSV() {
+
+  fetch("./DATAP.CSV?nocache=" + new Date().getTime())
+    .then(r => r.text())
+    .then(csv => {
+
+      const lines = csv.trim().split("\n");
+      const sep = lines[0].includes(";") ? ";" : ",";
+
+      DB = {};
+
+      for (let i = 1; i < lines.length; i++) {
+
+        const c = lines[i].split(sep).map(x => x.trim());
+        if (c.length < 5) continue;
+
+        DB[c[0]] = {
+          si: +c[1],
+          no: +c[2],
+          nulo: +c[3],
+          viciado: +c[4]
+        };
+      }
+
+      render();
+    });
+}
+
+// 🧠 CALCULO
+function calcular() {
+
+  let t = { si:0, no:0, nulo:0, viciado:0 };
+
+  Object.values(DB).forEach(r => {
+    t.si += r.si;
+    t.no += r.no;
+    t.nulo += r.nulo;
+    t.viciado += r.viciado;
+  });
+
+  return t;
+}
+
+// 📊 BARRA
+function barra(nombre, valor, color, total) {
+
+  const pct = total ? (valor / total) * 100 : 0;
+
+  return `
+    <div class="result">
+
+      <div class="row">
+        <div><b>${nombre}</b></div>
+        <div>${valor} | ${pct.toFixed(2)}%</div>
+      </div>
+
+      <div class="bar">
+        <div class="fill" style="width:${pct}%; background:${color}"></div>
+      </div>
+
+    </div>
+  `;
+}
+
+// 📊 CHART
+function drawChart(t) {
+
+  const ctx = document.getElementById("chart");
+
+  if (chart) chart.destroy();
+
+  chart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: ["SI","NO","NULO","VICIADO"],
+      datasets: [{
+        data: [t.si,t.no,t.nulo,t.viciado],
+        backgroundColor: ["#22c55e","#ef4444","#9ca3af","#f59e0b"]
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display:false } },
+      scales: { y: { beginAtZero:true } }
+    }
+  });
+}
+
+// 📍 LIMA
+function mostrarLima() {
+
+  const lima = DB["Lima"];
+
+  if (!lima) return;
+
+  const totalLima = lima.si + lima.no + lima.nulo + lima.viciado;
+
+  const box = document.getElementById("regionData");
+
+  box.style.display = "block";
+
+  box.innerHTML = `
+    <b>Región: LIMA</b><br><br>
+
+    SI: <b>${lima.si}</b> |
+    NO: <b>${lima.no}</b> |
+    NULO: <b>${lima.nulo}</b> |
+    VICIADO: <b>${lima.viciado}</b><br><br>
+
+    Total actas: <b>${totalLima}</b>
+  `;
+}
+
+// 📊 RENDER
+function render() {
+
+  const t = calcular();
+
+  const total = t.si + t.no + t.nulo + t.viciado;
+
+  const avance = (total / TOTAL_ACTAS) * 100;
+
+  const pendientes = TOTAL_ACTAS - total;
+
+  document.getElementById("conta").innerText = total;
+  document.getElementById("pend").innerText = pendientes;
+
+  document.getElementById("avancePct").innerText = avance.toFixed(2) + "%";
+
+  document.getElementById("progressBar").style.width = avance + "%";
+
+  document.getElementById("resultados").innerHTML = `
+    ${barra("SI", t.si, "#22c55e", total)}
+    ${barra("NO", t.no, "#ef4444", total)}
+    ${barra("NULO", t.nulo, "#9ca3af", total)}
+    ${barra("VICIADO", t.viciado, "#f59e0b", total)}
+  `;
+
+  drawChart(t);
+}
+
+// 🚀 INIT
+cargarCSV();
+setInterval(cargarCSV, 5000);
+
+</script>
+
+</body>
+</html>
+
