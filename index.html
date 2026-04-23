@@ -13,14 +13,12 @@ body {
   background: #f3f4f6;
 }
 
-/* 🟦 HEADER */
 .header {
   background: #0b1b3a;
   color: white;
   padding: 12px 18px;
 }
 
-/* LOGO */
 .logo {
   font-size: 18px;
   font-weight: 800;
@@ -31,7 +29,6 @@ body {
   border-radius: 6px;
 }
 
-/* INFO LINE */
 .info-line {
   display: flex;
   gap: 20px;
@@ -41,7 +38,6 @@ body {
   width: 100%;
 }
 
-/* DOTS */
 .dot {
   width: 8px;
   height: 8px;
@@ -53,13 +49,11 @@ body {
 .green { background: #22c55e; }
 .red { background: #ef4444; }
 
-/* AVANCE A LA DERECHA */
 .avance {
   margin-left: auto;
   font-weight: bold;
 }
 
-/* PROGRESS FULL WIDTH */
 .progress {
   width: 100vw;
   height: 6px;
@@ -75,12 +69,10 @@ body {
   transition: width 0.5s ease;
 }
 
-/* CONTENEDOR */
 .container {
   padding: 15px;
 }
 
-/* CHART */
 .chart-box {
   background: white;
   padding: 10px;
@@ -89,7 +81,6 @@ body {
   margin-bottom: 12px;
 }
 
-/* RESULTADOS */
 .result {
   background: white;
   padding: 10px;
@@ -115,7 +106,6 @@ body {
   height: 100%;
 }
 
-/* BOTON LIMA */
 button {
   margin-top: 10px;
   padding: 10px 14px;
@@ -126,7 +116,6 @@ button {
   cursor: pointer;
 }
 
-/* PANEL REGION */
 #regionData {
   background: white;
   padding: 12px;
@@ -135,56 +124,46 @@ button {
   font-size: 14px;
   display: none;
 }
+
+#errorBox {
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  display: none;
+}
 </style>
 </head>
 
 <body>
 
-<!-- 🟦 HEADER -->
 <div class="header">
-
   <div class="logo">FSCE</div>
 
   <div class="info-line">
-
-    <div>
-      <span class="dot green"></span>
-      Actas contabilizadas: <b id="conta">0</b>
-    </div>
-
-    <div>
-      <span class="dot red"></span>
-      Actas pendientes: <b id="pend">0</b>
-    </div>
-
-    <!-- 🟦 AVANCE A LA DERECHA -->
-    <div class="avance">
-      Avance <span id="avancePct">0%</span>
-    </div>
-
+    <div><span class="dot green"></span>Actas contabilizadas: <b id="conta">0</b></div>
+    <div><span class="dot red"></span>Actas pendientes: <b id="pend">0</b></div>
+    <div class="avance">Avance <span id="avancePct">0%</span></div>
   </div>
 
   <div class="progress">
     <div class="progress-bar" id="progressBar"></div>
   </div>
-
 </div>
 
-<!-- 📦 CONTENIDO -->
 <div class="container">
 
-  <!-- 📊 GRÁFICO -->
+  <div id="errorBox"></div>
+
   <div class="chart-box">
     <canvas id="chart"></canvas>
   </div>
 
-  <!-- 📊 RESULTADOS -->
   <div id="resultados"></div>
 
-  <!-- 🔘 BOTÓN LIMA -->
   <button onclick="mostrarLima()">LIMA</button>
 
-  <!-- 📍 PANEL -->
   <div id="regionData"></div>
 
 </div>
@@ -195,12 +174,17 @@ const TOTAL_ACTAS = 575;
 let DB = {};
 let chart;
 
-// 📥 CSV
+// 📥 Cargar CSV con control de errores
 function cargarCSV() {
 
-  fetch("./datap.csv?nocache=" + new Date().getTime())
-    .then(r => r.text())
+  fetch("datap.csv?nocache=" + new Date().getTime())
+    .then(r => {
+      if (!r.ok) throw new Error("No se pudo cargar datap.csv");
+      return r.text();
+    })
     .then(csv => {
+
+      document.getElementById("errorBox").style.display = "none";
 
       const lines = csv.trim().split("\n");
       const sep = lines[0].includes(";") ? ";" : ",";
@@ -213,56 +197,53 @@ function cargarCSV() {
         if (c.length < 5) continue;
 
         DB[c[0]] = {
-          si: +c[1],
-          no: +c[2],
-          nulo: +c[3],
-          viciado: +c[4]
+          si: +c[1] || 0,
+          no: +c[2] || 0,
+          nulo: +c[3] || 0,
+          viciado: +c[4] || 0
         };
       }
 
       render();
+    })
+    .catch(err => {
+      console.error(err);
+      const box = document.getElementById("errorBox");
+      box.style.display = "block";
+      box.innerText = "Error cargando datap.csv";
     });
 }
 
-// 🧠 CALCULO
+// 🧠 Calcular totales
 function calcular() {
-
   let t = { si:0, no:0, nulo:0, viciado:0 };
-
   Object.values(DB).forEach(r => {
     t.si += r.si;
     t.no += r.no;
     t.nulo += r.nulo;
     t.viciado += r.viciado;
   });
-
   return t;
 }
 
-// 📊 BARRA
+// 📊 Barra
 function barra(nombre, valor, color, total) {
-
   const pct = total ? (valor / total) * 100 : 0;
-
   return `
     <div class="result">
-
       <div class="row">
         <div><b>${nombre}</b></div>
         <div>${valor} | ${pct.toFixed(2)}%</div>
       </div>
-
       <div class="bar">
         <div class="fill" style="width:${pct}%; background:${color}"></div>
       </div>
-
     </div>
   `;
 }
 
-// 📊 CHART
+// 📊 Gráfico
 function drawChart(t) {
-
   const ctx = document.getElementById("chart");
 
   if (chart) chart.destroy();
@@ -285,47 +266,38 @@ function drawChart(t) {
   });
 }
 
-// 📍 LIMA
+// 📍 Lima
 function mostrarLima() {
-
   const lima = DB["Lima"];
-
   if (!lima) return;
 
   const totalLima = lima.si + lima.no + lima.nulo + lima.viciado;
 
   const box = document.getElementById("regionData");
-
   box.style.display = "block";
 
   box.innerHTML = `
     <b>Región: LIMA</b><br><br>
-
     SI: <b>${lima.si}</b> |
     NO: <b>${lima.no}</b> |
     NULO: <b>${lima.nulo}</b> |
     VICIADO: <b>${lima.viciado}</b><br><br>
-
     Total actas: <b>${totalLima}</b>
   `;
 }
 
-// 📊 RENDER
+// 📊 Render
 function render() {
 
   const t = calcular();
-
   const total = t.si + t.no + t.nulo + t.viciado;
 
   const avance = (total / TOTAL_ACTAS) * 100;
-
   const pendientes = TOTAL_ACTAS - total;
 
   document.getElementById("conta").innerText = total;
   document.getElementById("pend").innerText = pendientes;
-
   document.getElementById("avancePct").innerText = avance.toFixed(2) + "%";
-
   document.getElementById("progressBar").style.width = avance + "%";
 
   document.getElementById("resultados").innerHTML = `
@@ -338,7 +310,7 @@ function render() {
   drawChart(t);
 }
 
-// 🚀 INIT
+// 🚀 Inicio
 cargarCSV();
 setInterval(cargarCSV, 5000);
 
@@ -346,4 +318,3 @@ setInterval(cargarCSV, 5000);
 
 </body>
 </html>
-
