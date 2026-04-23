@@ -198,7 +198,7 @@ let chart;
 // 📥 CSV
 function cargarCSV() {
 
-  fetch("./DATAP.CSV?nocache=" + new Date().getTime())
+  fetch("./datap.csv?nocache=" + new Date().getTime())
     .then(r => r.text())
     .then(csv => {
 
